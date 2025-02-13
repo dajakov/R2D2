@@ -1,0 +1,89 @@
+(kicad_sch
+	(version 20231120)
+	(generator "eeschema")
+	(generator_version "8.0")
+	(uuid "686d9667-c257-4275-91ee-c50535ac92c5")
+	(paper "A4")
+	(lib_symbols)
+	(sheet
+		(at 170.18 40.64)
+		(size 72.39 46.99)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "cfb09cbf-91b7-4630-82e2-504ac5b2d2a9")
+		(property "Sheetname" "controller"
+			(at 170.18 39.9284 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "controller.kicad_sch"
+			(at 170.18 88.2146 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "R2D2-battery-control"
+				(path "/686d9667-c257-4275-91ee-c50535ac92c5"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 41.91 40.64)
+		(size 76.2 46.99)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "ed9de865-624e-4550-b960-8c7a70d2389f")
+		(property "Sheetname" "Power Stage"
+			(at 41.91 39.9284 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "power_stage.kicad_sch"
+			(at 41.91 88.2146 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "R2D2-battery-control"
+				(path "/686d9667-c257-4275-91ee-c50535ac92c5"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+)
