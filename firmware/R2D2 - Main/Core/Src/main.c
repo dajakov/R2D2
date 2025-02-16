@@ -239,6 +239,47 @@ void display_telemetry(void){
 		ili9341_draw_string(_lcd, text_disconnected, "Disconnected!");
 	}
 }
+
+void update_battery_indicator(uint8_t battery_level){
+	ili9341_draw_rect(_lcd, ILI9341_BLACK, 160, 80, 40, 100);
+	ili9341_fill_rect(_lcd, ILI9341_BLACK, 170, 71, 20, 10);
+
+	if(battery_level <= 30){
+		text_battery.fg_color = ILI9341_RED;
+	}
+	else{
+		text_battery.fg_color = ILI9341_GREEN;
+	}
+
+	char text[5];
+	snprintf(text, sizeof(text), "%-3d%%", battery_level);
+	ili9341_draw_string(_lcd, text_battery, text);
+
+	if(battery_level >= 75){
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 85, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 109, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 133, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 157, 30, 19);
+	}
+	else if(battery_level >= 50){
+		ili9341_fill_rect(_lcd, ILI9341_NAVY, 165, 85, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 109, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 133, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 157, 30, 19);
+	}
+	else if(battery_level >= 25){
+		ili9341_fill_rect(_lcd, ILI9341_NAVY, 165, 85, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_NAVY, 165, 109, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 133, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_GREEN, 165, 157, 30, 19);
+	}
+	else{
+		ili9341_fill_rect(_lcd, ILI9341_NAVY, 165, 85, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_NAVY, 165, 109, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_NAVY, 165, 133, 30, 19);
+		ili9341_fill_rect(_lcd, ILI9341_RED, 165, 157, 30, 19);
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -356,9 +397,7 @@ int main(void)
   ili9341_draw_rect(_lcd, ILI9341_WHITE, 220, 20, 25, 160);
   ili9341_draw_rect(_lcd, ILI9341_WHITE, 290, 20, 25, 160);
 
-  ili9341_draw_rect(_lcd, ILI9341_BLACK, 160, 80, 40, 100);
-  ili9341_fill_rect(_lcd, ILI9341_BLACK, 170, 71, 20, 10);
-  ili9341_draw_string(_lcd, text_battery, "100%");
+  update_battery_indicator(20);
 
 //  ili9341_draw_bitmap_1b(_lcd, ILI9341_WHITE, ILI9341_NAVY, 100, 100, 4, 4, bmp);
   ili9341_draw_bitmap_1b(_lcd, ILI9341_NAVY, ILI9341_WHITE,
