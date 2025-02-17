@@ -1,6 +1,9 @@
 # R2D2 Robotic Control System
 
-![](images/R2D2_full_body.png)
+<div style="display: flex; justify-content: space-between;">
+  <img src="images/R2D2_full_body.png" width="45%">
+  <img src="images/R2D2_pcbs.jpg" width="36%">
+</div>
 
 This repository contains all source files for a robotic control system designed to control a life-sized R2D2 robot. The 3D models were created by  [Michael Baddeley](https://www.patreon.com/mrbaddeley).
 
@@ -27,3 +30,22 @@ The main PCB serves as the translator for incoming data from the Android app, co
 
 The STM32 microcontrollers were programmed using STM32CubeIDE. This repository contains the entire CubeIDE project directory for each subsystem.
 Each PCB features a 2.54mm male pin header, allowing for easy flashing and debugging via SWD (Serial Wire Debug).
+
+# Development
+
+Hardware:
+- [x] Test main PCB
+- [x] Test drive PCB
+- [ ] Test dome-motor PCB
+- [ ] Test drive-intelligence PCB
+- [ ] Test battery-control PCB
+
+Firmware:
+- [x] Velocity control 
+- [x] Shut down motors on connection loss to Android App
+- [ ] Increase CAN frequency
+
+Android App:
+- [x] Joystick
+- [x] Buttons for dome rotation
+- [ ] Add status display (battery state, error indicator)
