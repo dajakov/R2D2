@@ -31,7 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ADDRESS 0x12
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,6 +49,8 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN PV */
+uint32_t canAddress;
+
 CAN_TxHeaderTypeDef   TxHeader;
 uint8_t               TxData[8];
 uint32_t              TxMailbox;
@@ -267,7 +269,13 @@ static void MX_CAN_Init(void)
 {
 
   /* USER CODE BEGIN CAN_Init 0 */
-
+	if (HAL_GPIO_ReadPin(CAN_address_select_GPIO_Port, CAN_address_select_Pin)) {
+		// right motor
+		canAddress = 0x12;
+	} else {
+		// left motor
+		canAddress = 0x11;
+	}
   /* USER CODE END CAN_Init 0 */
 
   /* USER CODE BEGIN CAN_Init 1 */
@@ -295,10 +303,10 @@ static void MX_CAN_Init(void)
   canfilterconfig.FilterBank = 0; // Use filter bank 0
   canfilterconfig.FilterMode = CAN_FILTERMODE_IDLIST; // Mask mode
   canfilterconfig.FilterScale = CAN_FILTERSCALE_16BIT;
-  canfilterconfig.FilterIdHigh = (ADDRESS << 5); // 11-bit ID shifted to high register
-  canfilterconfig.FilterIdLow = (ADDRESS << 5); // 11-bit ID shifted to low register
-  canfilterconfig.FilterMaskIdHigh = (ADDRESS << 5); // Exact match for ID
-  canfilterconfig.FilterMaskIdLow = (ADDRESS << 5); // Exact match for ID
+  canfilterconfig.FilterIdHigh = (canAddress << 5); // 11-bit ID shifted to high register
+  canfilterconfig.FilterIdLow = (canAddress << 5); // 11-bit ID shifted to low register
+  canfilterconfig.FilterMaskIdHigh = (canAddress << 5); // Exact match for ID
+  canfilterconfig.FilterMaskIdLow = (canAddress << 5); // Exact match for ID
   canfilterconfig.FilterFIFOAssignment = CAN_RX_FIFO0; // Use FIFO 0
   canfilterconfig.FilterActivation = ENABLE;
 
@@ -423,11 +431,12 @@ static void MX_DMA_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, CAN_MODE_SELECT_Pin|IN1_Pin|IN2_Pin, GPIO_PIN_RESET);
@@ -439,8 +448,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /*Configure GPIO pin : CAN_address_select_Pin */
+  GPIO_InitStruct.Pin = CAN_address_select_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(CAN_address_select_GPIO_Port, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
