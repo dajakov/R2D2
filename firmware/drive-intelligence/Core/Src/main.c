@@ -63,6 +63,22 @@ volatile uint32_t gu32_Ticks = 0;
 volatile uint16_t gu16_TIM2_OVC = 0;
 volatile uint32_t gu32_Freq = 0;
 volatile float f_meters_per_second = 0;
+
+uint32_t canAddress;
+uint32_t driveCanAddress;
+CAN_TxHeaderTypeDef TxHeaderDrive;
+CAN_TxHeaderTypeDef TxHeaderMain;
+uint8_t TxHeaderDriveData[6];
+uint32_t TxMailbox;
+
+static int16_t data_raw_acceleration[3];
+static int16_t data_raw_angular_rate[3];
+static int16_t data_raw_temperature;
+static float acceleration_mg[3];
+static float angular_rate_mdps[3];
+static float temperature_degC;
+static uint8_t whoamI, rst;
+stmdev_ctx_t dev_ctx;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -74,18 +90,13 @@ static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 static int32_t platform_write(void *handle, uint8_t reg, const uint8_t *bufp, uint16_t len);
 static int32_t platform_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len);
+void lsm6_init(void);
+void get_lsm6_data(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-//variable initialization
-static int16_t data_raw_acceleration[3];
-static int16_t data_raw_angular_rate[3];
-static int16_t data_raw_temperature;
-static float acceleration_mg[3];
-static float angular_rate_mdps[3];
-static float temperature_degC;
-static uint8_t whoamI, rst;
+
 /* USER CODE END 0 */
 
 /**
@@ -121,84 +132,34 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  stmdev_ctx_t dev_ctx;
-  dev_ctx.write_reg = platform_write;
-  dev_ctx.read_reg = platform_read;
-  dev_ctx.handle = &SENSOR_BUS;
+  TxHeaderDrive.IDE = CAN_ID_STD;
+  TxHeaderDrive.StdId = driveCanAddress;
+  TxHeaderDrive.RTR = CAN_RTR_DATA;
+  TxHeaderDrive.DLC = 5;
+  TxHeaderDriveData[0] = driveCanAddress;
+  TxHeaderDriveData[1] = 0x01;
+
+  TxHeaderMain.IDE = CAN_ID_STD;
+  TxHeaderMain.StdId = driveCanAddress;
+  TxHeaderMain.RTR = CAN_RTR_DATA;
+  TxHeaderMain.DLC = 2;
 
   HAL_Delay(100);
-  lsm6dsm_i2c_interface_set(&dev_ctx, 0);
-  lsm6dsm_device_id_get(&dev_ctx, &whoamI);
-
-  do {
-      lsm6dsm_reset_get(&dev_ctx, &rst);
-    } while (rst);
-
-    /*  Enable Block Data Update */
-    lsm6dsm_block_data_update_set(&dev_ctx, PROPERTY_ENABLE);
-    /* Set Output Data Rate for Acc and Gyro */
-    lsm6dsm_xl_data_rate_set(&dev_ctx, LSM6DSM_XL_ODR_12Hz5);
-    lsm6dsm_gy_data_rate_set(&dev_ctx, LSM6DSM_GY_ODR_12Hz5);
-    /* Set full scale */
-    lsm6dsm_xl_full_scale_set(&dev_ctx, LSM6DSM_2g);
-    lsm6dsm_gy_full_scale_set(&dev_ctx, LSM6DSM_2000dps);
-    /* Configure filtering chain(No aux interface)
-     * Accelerometer - analog filter
-     */
-    lsm6dsm_xl_filter_analog_set(&dev_ctx, LSM6DSM_XL_ANA_BW_400Hz);
-    /* Accelerometer - LPF1 path (LPF2 not used) */
-    //lsm6dsm_xl_lp1_bandwidth_set(&dev_ctx, LSM6DSM_XL_LP1_ODR_DIV_4);
-    /* Accelerometer - LPF1 + LPF2 path */
-    lsm6dsm_xl_lp2_bandwidth_set(&dev_ctx, LSM6DSM_XL_LOW_NOISE_LP_ODR_DIV_100);
-    /* Accelerometer - High Pass / Slope path */
-    //lsm6dsm_xl_reference_mode_set(&dev_ctx, PROPERTY_DISABLE);
-    //lsm6dsm_xl_hp_bandwidth_set(&dev_ctx, LSM6DSM_XL_HP_ODR_DIV_100);
-    /* Gyroscope - filtering chain */
-    lsm6dsm_gy_band_pass_set(&dev_ctx, LSM6DSM_HP_260mHz_LP1_STRONG);
-
-    HAL_TIM_Base_Start_IT(&htim3);
-    HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_4);
+  lsm6_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	lsm6dsm_reg_t reg;
-	/* Read output only if new value is available */
-	lsm6dsm_status_reg_get(&dev_ctx, &reg.status_reg);
+	  uint32_t f_int = *(uint32_t*) &f_meters_per_second;
+	  // Convert the integer to a byte array
+	  for (int i = 2; i < sizeof(f_int) + 2; i++) {
+		  TxHeaderDriveData[i] = (char) (f_int >> (8 * (sizeof(float) - 1 - i)));
+	  }
+	  HAL_CAN_AddTxMessage(&hcan, &TxHeaderDrive, TxHeaderDriveData, &TxMailbox);
 
-	if (reg.status_reg.xlda) {
-	  /* Read acceleration field data */
-	  memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
-	  lsm6dsm_acceleration_raw_get(&dev_ctx, data_raw_acceleration);
-	  acceleration_mg[0] =
-		lsm6dsm_from_fs2g_to_mg(data_raw_acceleration[0]);
-	  acceleration_mg[1] =
-		lsm6dsm_from_fs2g_to_mg(data_raw_acceleration[1]);
-	  acceleration_mg[2] =
-		lsm6dsm_from_fs2g_to_mg(data_raw_acceleration[2]);
-	}
-
-	if (reg.status_reg.gda) {
-	  /* Read angular rate field data */
-	  memset(data_raw_angular_rate, 0x00, 3 * sizeof(int16_t));
-	  lsm6dsm_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate);
-	  angular_rate_mdps[0] =
-		lsm6dsm_from_fs2000dps_to_mdps(data_raw_angular_rate[0]);
-	  angular_rate_mdps[1] =
-		lsm6dsm_from_fs2000dps_to_mdps(data_raw_angular_rate[1]);
-	  angular_rate_mdps[2] =
-		lsm6dsm_from_fs2000dps_to_mdps(data_raw_angular_rate[2]);
-	}
-
-	if (reg.status_reg.tda) {
-	  /* Read temperature data */
-	  memset(&data_raw_temperature, 0x00, sizeof(int16_t));
-	  lsm6dsm_temperature_raw_get(&dev_ctx, &data_raw_temperature);
-	  temperature_degC = lsm6dsm_from_lsb_to_celsius(
-						   data_raw_temperature);
-	}
+	  get_lsm6_data();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -260,7 +221,16 @@ static void MX_CAN_Init(void)
 {
 
   /* USER CODE BEGIN CAN_Init 0 */
-
+	if (HAL_GPIO_ReadPin(CAN_address_select_GPIO_Port,
+			CAN_address_select_Pin)) {
+		// right motor
+		canAddress = 0x15;
+		driveCanAddress = 0x13;
+	} else {
+		// left motor
+		canAddress = 0x14;
+		driveCanAddress = 0x12;
+	}
   /* USER CODE END CAN_Init 0 */
 
   /* USER CODE BEGIN CAN_Init 1 */
@@ -283,7 +253,19 @@ static void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
+  CAN_FilterTypeDef canfilterconfig;
 
+  canfilterconfig.FilterBank = 0; // Use filter bank 0
+  canfilterconfig.FilterMode = CAN_FILTERMODE_IDLIST; // Mask mode
+  canfilterconfig.FilterScale = CAN_FILTERSCALE_16BIT;
+  canfilterconfig.FilterIdHigh = (canAddress << 5); // 11-bit ID shifted to high register
+  canfilterconfig.FilterIdLow = (canAddress << 5); // 11-bit ID shifted to low register
+  canfilterconfig.FilterMaskIdHigh = (canAddress << 5); // Exact match for ID
+  canfilterconfig.FilterMaskIdLow = (canAddress << 5); // Exact match for ID
+  canfilterconfig.FilterFIFOAssignment = CAN_RX_FIFO0; // Use FIFO 0
+  canfilterconfig.FilterActivation = ENABLE;
+
+  HAL_CAN_ConfigFilter(&hcan, &canfilterconfig);
   /* USER CODE END CAN_Init 2 */
 
 }
@@ -406,12 +388,18 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CAN_MODE_SELECT_GPIO_Port, CAN_MODE_SELECT_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : CAN_address_select_Pin */
+  GPIO_InitStruct.Pin = CAN_address_select_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(CAN_address_select_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : IMU_INT1_Pin IMU_INT2_Pin */
   GPIO_InitStruct.Pin = IMU_INT1_Pin|IMU_INT2_Pin;
@@ -431,6 +419,79 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void lsm6_init(void){
+	dev_ctx.write_reg = platform_write;
+	dev_ctx.read_reg = platform_read;
+	dev_ctx.handle = &SENSOR_BUS;
+
+	lsm6dsm_i2c_interface_set(&dev_ctx, 0);
+	lsm6dsm_device_id_get(&dev_ctx, &whoamI);
+
+	do {
+		lsm6dsm_reset_get(&dev_ctx, &rst);
+	} while (rst);
+
+	/*  Enable Block Data Update */
+	lsm6dsm_block_data_update_set(&dev_ctx, PROPERTY_ENABLE);
+	/* Set Output Data Rate for Acc and Gyro */
+	lsm6dsm_xl_data_rate_set(&dev_ctx, LSM6DSM_XL_ODR_12Hz5);
+	lsm6dsm_gy_data_rate_set(&dev_ctx, LSM6DSM_GY_ODR_12Hz5);
+	/* Set full scale */
+	lsm6dsm_xl_full_scale_set(&dev_ctx, LSM6DSM_2g);
+	lsm6dsm_gy_full_scale_set(&dev_ctx, LSM6DSM_2000dps);
+	/* Configure filtering chain(No aux interface)
+	 * Accelerometer - analog filter
+	 */
+	lsm6dsm_xl_filter_analog_set(&dev_ctx, LSM6DSM_XL_ANA_BW_400Hz);
+	/* Accelerometer - LPF1 path (LPF2 not used) */
+	//lsm6dsm_xl_lp1_bandwidth_set(&dev_ctx, LSM6DSM_XL_LP1_ODR_DIV_4);
+	/* Accelerometer - LPF1 + LPF2 path */
+	lsm6dsm_xl_lp2_bandwidth_set(&dev_ctx, LSM6DSM_XL_LOW_NOISE_LP_ODR_DIV_100);
+	/* Accelerometer - High Pass / Slope path */
+	//lsm6dsm_xl_reference_mode_set(&dev_ctx, PROPERTY_DISABLE);
+	//lsm6dsm_xl_hp_bandwidth_set(&dev_ctx, LSM6DSM_XL_HP_ODR_DIV_100);
+	/* Gyroscope - filtering chain */
+	lsm6dsm_gy_band_pass_set(&dev_ctx, LSM6DSM_HP_260mHz_LP1_STRONG);
+
+	HAL_TIM_Base_Start_IT(&htim3);
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_4);
+}
+
+void get_lsm6_data(void){
+	lsm6dsm_reg_t reg;
+	/* Read output only if new value is available */
+	lsm6dsm_status_reg_get(&dev_ctx, &reg.status_reg);
+
+	if (reg.status_reg.xlda) {
+		/* Read acceleration field data */
+		memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
+		lsm6dsm_acceleration_raw_get(&dev_ctx, data_raw_acceleration);
+		acceleration_mg[0] = lsm6dsm_from_fs2g_to_mg(data_raw_acceleration[0]);
+		acceleration_mg[1] = lsm6dsm_from_fs2g_to_mg(data_raw_acceleration[1]);
+		acceleration_mg[2] = lsm6dsm_from_fs2g_to_mg(data_raw_acceleration[2]);
+	}
+
+	if (reg.status_reg.gda) {
+		/* Read angular rate field data */
+		memset(data_raw_angular_rate, 0x00, 3 * sizeof(int16_t));
+		lsm6dsm_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate);
+		angular_rate_mdps[0] = lsm6dsm_from_fs2000dps_to_mdps(
+				data_raw_angular_rate[0]);
+		angular_rate_mdps[1] = lsm6dsm_from_fs2000dps_to_mdps(
+				data_raw_angular_rate[1]);
+		angular_rate_mdps[2] = lsm6dsm_from_fs2000dps_to_mdps(
+				data_raw_angular_rate[2]);
+	}
+
+	if (reg.status_reg.tda) {
+		/* Read temperature data */
+		memset(&data_raw_temperature, 0x00, sizeof(int16_t));
+		lsm6dsm_temperature_raw_get(&dev_ctx, &data_raw_temperature);
+		temperature_degC = lsm6dsm_from_lsb_to_celsius(data_raw_temperature);
+	}
+}
+
 /*
  * @brief  Write generic device register (platform dependent)
  *

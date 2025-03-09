@@ -56,10 +56,13 @@ uint8_t               TxData[8];
 uint32_t              TxMailbox;
 
 CAN_RxHeaderTypeDef   RxHeader;
-uint8_t               RxData[2];
+uint8_t               RxData[5];
 
 uint8_t direction;
 uint8_t pwmDutyCycle;
+
+uint8_t floatData[4];
+float rpm;
 
 uint32_t datacheck;
 volatile uint32_t millisecondstimer;
@@ -76,7 +79,7 @@ static void MX_TIM14_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
-
+float floatFromBytes(const char* bytes, int len);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -123,8 +126,7 @@ int main(void)
 	  Error_Handler();
   }
 
-  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
-  {
+  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
 	  Error_Handler();
   }
 
@@ -153,6 +155,8 @@ int main(void)
 	  }
 
 	  TIM14->CCR1 = pwmDutyCycle * 10;
+
+	  rpm = floatFromBytes(floatData, 4);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -271,10 +275,10 @@ static void MX_CAN_Init(void)
   /* USER CODE BEGIN CAN_Init 0 */
 	if (HAL_GPIO_ReadPin(CAN_address_select_GPIO_Port, CAN_address_select_Pin)) {
 		// right motor
-		canAddress = 0x12;
+		canAddress = 0x13;
 	} else {
 		// left motor
-		canAddress = 0x11;
+		canAddress = 0x12;
 	}
   /* USER CODE END CAN_Init 0 */
 
@@ -473,8 +477,41 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
         Error_Handler();
     }
 
-    direction = RxData[0];
-    pwmDutyCycle = RxData[1];
+    if(RxData[0] == 0x10 && RxData[1] == 0x00){
+    	direction = RxData[2];
+    	pwmDutyCycle = RxData[3];
+    } else if(RxData[1] == 0x01){
+    	for(uint8_t i = 0; i < 4; i++){
+    		floatData[i] = RxData[i + 2];
+    	}
+    }
+}
+
+float floatFromBytes(const char* bytes, int len) {
+    if (len != 4) {
+        // Handle error: incorrect length
+        return 0;
+    }
+
+    uint32_t floatInt = *(uint32_t*)bytes;
+
+    // Extract the exponent and mantissa
+    uint8_t signBit = bytes[0] & 0x80;
+    uint8_t expBias = bytes[3];
+    uint16_t expMant = (floatInt >> 1) | ((floatInt & 0x1f) << 23);
+    uint32_t mant = floatInt;
+
+    // Convert the binary floating-point representation
+    float result;
+    if (signBit == 0) {
+        // Positive number
+        result = (expMant * pow(2.0, expBias)) / (1 << 23) + mant / pow(2.0, 127);
+    } else {
+        // Negative number
+        result = -(pow(2.0, -expBias - 23) * expMant + mant / pow(2.0, 127));
+    }
+
+    return result;
 }
 /* USER CODE END 4 */
 
