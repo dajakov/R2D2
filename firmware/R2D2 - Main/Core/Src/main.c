@@ -69,8 +69,8 @@ extern const unsigned char bmp[];
 FDCAN_TxHeaderTypeDef   TxHeaderDriveLeft;
 FDCAN_TxHeaderTypeDef   TxHeaderDriveRight;
 FDCAN_RxHeaderTypeDef   RxHeader1;
-uint8_t               TxDataDriveLeft[2];
-uint8_t               TxDataDriveRight[2];
+uint8_t               TxDataDriveLeft[4];
+uint8_t               TxDataDriveRight[4];
 
 uint8_t               RxData1[2];
 
@@ -150,14 +150,14 @@ void calculate_pwm_values(int8_t sector, float differentialDriveFactor){
 	if(sector == -1){
 		pwmDutyCycleLeft = 0;
 		pwmDutyCycleRight = 0;
-		TxDataDriveLeft[0] = 'S';
-		TxDataDriveRight[0] = 'S';
+		TxDataDriveLeft[2] = 'S';
+		TxDataDriveRight[2] = 'S';
 	}
 	else{
 		switch(sector){
 		case 0: // move forward with steering
-			TxDataDriveLeft[0] = 'F';
-			TxDataDriveRight[0] = 'F';
+			TxDataDriveLeft[2] = 'F';
+			TxDataDriveRight[2] = 'F';
 			if(joystickX > 0){
 				pwmDutyCycleLeft = speed;
 				pwmDutyCycleRight = speed * differentialDriveFactor;
@@ -168,14 +168,14 @@ void calculate_pwm_values(int8_t sector, float differentialDriveFactor){
 			}
 			break;
 		case 1: // rotate right
-			TxDataDriveLeft[0] = 'F';
-			TxDataDriveRight[0] = 'B';
+			TxDataDriveLeft[2] = 'F';
+			TxDataDriveRight[2] = 'B';
 			pwmDutyCycleLeft = speed;
 			pwmDutyCycleRight = speed;
 			break;
 		case 2: // move backward with steering
-			TxDataDriveLeft[0] = 'B';
-			TxDataDriveRight[0] = 'B';
+			TxDataDriveLeft[2] = 'B';
+			TxDataDriveRight[2] = 'B';
 			if(joystickX > 0){
 				pwmDutyCycleLeft = speed * differentialDriveFactor;
 				pwmDutyCycleRight = speed;
@@ -186,8 +186,8 @@ void calculate_pwm_values(int8_t sector, float differentialDriveFactor){
 			}
 			break;
 		case 3: // rotate left
-			TxDataDriveLeft[0] = 'B';
-			TxDataDriveRight[0] = 'F';
+			TxDataDriveLeft[2] = 'B';
+			TxDataDriveRight[2] = 'F';
 			pwmDutyCycleLeft = speed;
 			pwmDutyCycleRight = speed;
 			break;
@@ -336,22 +336,26 @@ int main(void)
   TxHeaderDriveLeft.Identifier = 0x12;
   TxHeaderDriveLeft.IdType = FDCAN_STANDARD_ID;
   TxHeaderDriveLeft.TxFrameType = FDCAN_DATA_FRAME;
-  TxHeaderDriveLeft.DataLength = FDCAN_DLC_BYTES_2;
+  TxHeaderDriveLeft.DataLength = FDCAN_DLC_BYTES_4;
   TxHeaderDriveLeft.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   TxHeaderDriveLeft.BitRateSwitch = FDCAN_BRS_OFF;
   TxHeaderDriveLeft.FDFormat = FDCAN_CLASSIC_CAN;
   TxHeaderDriveLeft.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   TxHeaderDriveLeft.MessageMarker = 0;
+  TxDataDriveLeft[0] = 0x10;
+  TxDataDriveLeft[1] = 0x00;
 
   TxHeaderDriveRight.Identifier = 0x13;
   TxHeaderDriveRight.IdType = FDCAN_STANDARD_ID;
   TxHeaderDriveRight.TxFrameType = FDCAN_DATA_FRAME;
-  TxHeaderDriveRight.DataLength = FDCAN_DLC_BYTES_2;
+  TxHeaderDriveRight.DataLength = FDCAN_DLC_BYTES_4;
   TxHeaderDriveRight.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   TxHeaderDriveRight.BitRateSwitch = FDCAN_BRS_OFF;
   TxHeaderDriveRight.FDFormat = FDCAN_CLASSIC_CAN;
   TxHeaderDriveRight.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   TxHeaderDriveRight.MessageMarker = 0;
+  TxDataDriveRight[0] = 0x10;
+  TxDataDriveRight[1] = 0x00;
 
   HAL_Delay(1000); // give the ESP01 time to boot (the ESP sends unknown data over UART on boot)
   HAL_UART_Receive_DMA(&huart1, (uint8_t *)uartRxData, sizeof(uartRxData));
@@ -426,8 +430,8 @@ int main(void)
 			   int8_t sector = get_joystick_sector(joystickXpos, joystickYpos);
 			   calculate_pwm_values(sector, differentialDriveFactor);
 
-			   TxDataDriveLeft[1] = pwmDutyCycleLeft;
-			   TxDataDriveRight[1] = pwmDutyCycleRight;
+			   TxDataDriveLeft[3] = pwmDutyCycleLeft;
+			   TxDataDriveRight[3] = pwmDutyCycleRight;
 
 			   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeaderDriveLeft, TxDataDriveLeft);
 			   HAL_Delay(2);

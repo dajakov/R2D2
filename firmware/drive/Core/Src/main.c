@@ -31,7 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ADDRESS 0x12
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,15 +49,20 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN PV */
+uint32_t canAddress;
+
 CAN_TxHeaderTypeDef   TxHeader;
 uint8_t               TxData[8];
 uint32_t              TxMailbox;
 
 CAN_RxHeaderTypeDef   RxHeader;
-uint8_t               RxData[2];
+uint8_t               RxData[5];
 
 uint8_t direction;
 uint8_t pwmDutyCycle;
+
+uint8_t floatData[4];
+float rpm;
 
 uint32_t datacheck;
 volatile uint32_t millisecondstimer;
@@ -74,7 +79,7 @@ static void MX_TIM14_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
-
+float floatFromBytes(const char* bytes, int len);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -121,8 +126,7 @@ int main(void)
 	  Error_Handler();
   }
 
-  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
-  {
+  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
 	  Error_Handler();
   }
 
@@ -151,6 +155,8 @@ int main(void)
 	  }
 
 	  TIM14->CCR1 = pwmDutyCycle * 10;
+
+	  rpm = floatFromBytes(floatData, 4);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -267,7 +273,13 @@ static void MX_CAN_Init(void)
 {
 
   /* USER CODE BEGIN CAN_Init 0 */
-
+	if (HAL_GPIO_ReadPin(CAN_address_select_GPIO_Port, CAN_address_select_Pin)) {
+		// right motor
+		canAddress = 0x13;
+	} else {
+		// left motor
+		canAddress = 0x12;
+	}
   /* USER CODE END CAN_Init 0 */
 
   /* USER CODE BEGIN CAN_Init 1 */
@@ -295,10 +307,10 @@ static void MX_CAN_Init(void)
   canfilterconfig.FilterBank = 0; // Use filter bank 0
   canfilterconfig.FilterMode = CAN_FILTERMODE_IDLIST; // Mask mode
   canfilterconfig.FilterScale = CAN_FILTERSCALE_16BIT;
-  canfilterconfig.FilterIdHigh = (ADDRESS << 5); // 11-bit ID shifted to high register
-  canfilterconfig.FilterIdLow = (ADDRESS << 5); // 11-bit ID shifted to low register
-  canfilterconfig.FilterMaskIdHigh = (ADDRESS << 5); // Exact match for ID
-  canfilterconfig.FilterMaskIdLow = (ADDRESS << 5); // Exact match for ID
+  canfilterconfig.FilterIdHigh = (canAddress << 5); // 11-bit ID shifted to high register
+  canfilterconfig.FilterIdLow = (canAddress << 5); // 11-bit ID shifted to low register
+  canfilterconfig.FilterMaskIdHigh = (canAddress << 5); // Exact match for ID
+  canfilterconfig.FilterMaskIdLow = (canAddress << 5); // Exact match for ID
   canfilterconfig.FilterFIFOAssignment = CAN_RX_FIFO0; // Use FIFO 0
   canfilterconfig.FilterActivation = ENABLE;
 
@@ -423,11 +435,12 @@ static void MX_DMA_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, CAN_MODE_SELECT_Pin|IN1_Pin|IN2_Pin, GPIO_PIN_RESET);
@@ -439,8 +452,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /*Configure GPIO pin : CAN_address_select_Pin */
+  GPIO_InitStruct.Pin = CAN_address_select_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(CAN_address_select_GPIO_Port, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -458,8 +477,41 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
         Error_Handler();
     }
 
-    direction = RxData[0];
-    pwmDutyCycle = RxData[1];
+    if(RxData[0] == 0x10 && RxData[1] == 0x00){
+    	direction = RxData[2];
+    	pwmDutyCycle = RxData[3];
+    } else if(RxData[1] == 0x01){
+    	for(uint8_t i = 0; i < 4; i++){
+    		floatData[i] = RxData[i + 2];
+    	}
+    }
+}
+
+float floatFromBytes(const char* bytes, int len) {
+    if (len != 4) {
+        // Handle error: incorrect length
+        return 0;
+    }
+
+    uint32_t floatInt = *(uint32_t*)bytes;
+
+    // Extract the exponent and mantissa
+    uint8_t signBit = bytes[0] & 0x80;
+    uint8_t expBias = bytes[3];
+    uint16_t expMant = (floatInt >> 1) | ((floatInt & 0x1f) << 23);
+    uint32_t mant = floatInt;
+
+    // Convert the binary floating-point representation
+    float result;
+    if (signBit == 0) {
+        // Positive number
+        result = (expMant * pow(2.0, expBias)) / (1 << 23) + mant / pow(2.0, 127);
+    } else {
+        // Negative number
+        result = -(pow(2.0, -expBias - 23) * expMant + mant / pow(2.0, 127));
+    }
+
+    return result;
 }
 /* USER CODE END 4 */
 

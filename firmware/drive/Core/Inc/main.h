@@ -65,6 +65,8 @@ void Error_Handler(void);
 #define IN1_GPIO_Port GPIOA
 #define IN2_Pin GPIO_PIN_6
 #define IN2_GPIO_Port GPIOA
+#define CAN_address_select_Pin GPIO_PIN_1
+#define CAN_address_select_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

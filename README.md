@@ -37,13 +37,13 @@ Hardware:
 - [x] Test main PCB
 - [x] Test drive PCB
 - [ ] Test dome-motor PCB
-- [ ] Test drive-intelligence PCB
+- [x] Test drive-intelligence PCB
 - [ ] Test battery-control PCB
 
 Firmware:
 - [x] Velocity control 
 - [x] Shut down motors on connection loss to Android App
-- [ ] Increase CAN frequency
+- [x] Increase CAN frequency
 
 Android App:
 - [x] Joystick

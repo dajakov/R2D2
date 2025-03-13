@@ -57,14 +57,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define CAN_address_select_Pin GPIO_PIN_8
+#define CAN_address_select_GPIO_Port GPIOB
 #define IMU_INT1_Pin GPIO_PIN_5
 #define IMU_INT1_GPIO_Port GPIOA
 #define IMU_INT2_Pin GPIO_PIN_6
 #define IMU_INT2_GPIO_Port GPIOA
 #define CAN_MODE_SELECT_Pin GPIO_PIN_7
 #define CAN_MODE_SELECT_GPIO_Port GPIOA
-#define HALL_Pin GPIO_PIN_1
-#define HALL_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
